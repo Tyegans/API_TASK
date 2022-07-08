@@ -5,6 +5,7 @@ from flask import Flask, request, abort, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 import random
+from flask_sqlalchemy  import func
 
 from models import setup_db, Question, Category
 
@@ -104,22 +105,6 @@ def create_app(test_config=None):
                 })
         except:
             abort(422)
-        # get_category = Category.query.get(category_id)
-        # if category_id is None:
-        #     abort(404)
-        # try:
-        #     value = Question.query.order_by(Question.id).filter(Question.category == category_id).all()
-        #     get_questions_by_category = paginate_questions(request, value)
-
-        #     return jsonify({
-        #         "success" : True,
-        #         "questions" : get_questions_by_category,
-        #         "category_id" : get_category.id,
-        #         "category_type" : get_category.type,
-        #         "total_questions" : len(value)
-        #     })
-        # except:
-        #     abort(422)
 
     @app.route('/questions/search', methods=['POST'])
     def search_questions():
@@ -163,33 +148,39 @@ def create_app(test_config=None):
         except:
             abort(422)
 
+
     @app.route('/quizzes', methods=['POST'])
     def create_quiz():
-        try:
-            body = request.get_json()
+     body = request.get_json()
 
-            if not ('quiz_category' in body and 'previous_questions' in body):
-                abort(422)
+     if body is None or body['previous_questions'] is None or body['category'] is None:
+      abort(400)
 
-            category = body.get('quiz_category')
-            previous_questions = body.get('previous_questions')
+    try:
+      previous_questions = Question.get('previous_questions')
+      category = Question.get('category')
 
-            if category['type'] == 'click':
-                available_questions = Question.query.filter(
-                    Question.id.notin_((previous_questions))).all()
-            else:
-                available_questions = Question.query.filter_by(
-                    category=category['id']).filter(Question.id.notin_((previous_questions))).all()
+      if category == 0:
+        questions = Question.query.order_by(func.random())
+      else:
+        questions = Question.query.filter(Question.category==category).order_by(func.random())
 
-                quiz_question = available_questions[random.randrange(
-                    0, len(available_questions))].format() if len(available_questions) > 0 else None
+        question = questions.filter(Question.id.notin_(previous_questions)).first()
 
-            return jsonify({
-                'success': True,
-                'question': quiz_question
-            })
-        except:
-            abort(422)
+      if question is None:
+        return jsonify({
+          'success': True
+        })
+
+      return jsonify({
+        'success': True,
+        'question': question.format()
+      })
+    except:
+      abort(422)
+
+
+
 
     @app.errorhandler(422)
     def unprocessable(error):
